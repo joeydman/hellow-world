@@ -1,0 +1,14 @@
+version: 2
+updates:
+  - package-ecosystem: gradle
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      # AGP, Kotlin, KSP and Compose must move together.
+      toolchain:
+        patterns: ["com.android.*", "org.jetbrains.kotlin*", "com.google.devtools.ksp*", "androidx.compose*"]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
