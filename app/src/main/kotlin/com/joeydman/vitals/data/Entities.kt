@@ -3,6 +3,8 @@ package com.joeydman.vitals.data
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import com.joeydman.vitals.core.battery.ChargeSession
+import com.joeydman.vitals.core.battery.ChargeSpeed
 import com.joeydman.vitals.core.model.BatterySample
 import com.joeydman.vitals.core.model.ChargeStatus
 import com.joeydman.vitals.core.model.PlugType
@@ -79,3 +81,64 @@ data class CapacityEstimateEntity(
     val sampleCount: Int,
     val cycleCount: Int?,
 )
+
+/** Summary of one plug-in. Kept forever; raw samples behind it are pruned after 30 days. */
+@Entity(tableName = "charge_session")
+data class ChargeSessionEntity(
+    @PrimaryKey val startMs: Long,
+    val endMs: Long,
+    val ongoing: Boolean,
+    val plugType: String,
+    val startLevel: Int,
+    val endLevel: Int,
+    val addedMah: Double?,
+    val avgCurrentMa: Double?,
+    val peakCurrentMa: Double?,
+    val sustainedPowerW: Double?,
+    val avgTempC: Double?,
+    val peakTempC: Double?,
+    val timeTo80Ms: Long?,
+    val heldAtFullMs: Long,
+    val sampleCount: Int,
+    val speed: String,
+) {
+    fun toModel() = ChargeSession(
+        startMs = startMs,
+        endMs = endMs,
+        ongoing = ongoing,
+        plugType = runCatching { PlugType.valueOf(plugType) }.getOrDefault(PlugType.NONE),
+        startLevel = startLevel,
+        endLevel = endLevel,
+        addedMah = addedMah,
+        avgCurrentMa = avgCurrentMa,
+        peakCurrentMa = peakCurrentMa,
+        sustainedPowerW = sustainedPowerW,
+        avgTempC = avgTempC,
+        peakTempC = peakTempC,
+        timeTo80Ms = timeTo80Ms,
+        heldAtFullMs = heldAtFullMs,
+        sampleCount = sampleCount,
+        speed = runCatching { ChargeSpeed.valueOf(speed) }.getOrDefault(ChargeSpeed.UNKNOWN),
+    )
+
+    companion object {
+        fun from(s: ChargeSession) = ChargeSessionEntity(
+            startMs = s.startMs,
+            endMs = s.endMs,
+            ongoing = s.ongoing,
+            plugType = s.plugType.name,
+            startLevel = s.startLevel,
+            endLevel = s.endLevel,
+            addedMah = s.addedMah,
+            avgCurrentMa = s.avgCurrentMa,
+            peakCurrentMa = s.peakCurrentMa,
+            sustainedPowerW = s.sustainedPowerW,
+            avgTempC = s.avgTempC,
+            peakTempC = s.peakTempC,
+            timeTo80Ms = s.timeTo80Ms,
+            heldAtFullMs = s.heldAtFullMs,
+            sampleCount = s.sampleCount,
+            speed = s.speed.name,
+        )
+    }
+}

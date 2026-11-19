@@ -3,7 +3,10 @@ package com.joeydman.vitals.data
 import android.os.Build
 import com.joeydman.vitals.core.battery.BatteryHealth
 import com.joeydman.vitals.core.battery.CapacityEstimator
+import com.joeydman.vitals.core.battery.ChargeSession
+import com.joeydman.vitals.core.battery.ChargeSessionAnalyzer
 import com.joeydman.vitals.core.battery.DeviceProfiles
+import com.joeydman.vitals.core.model.PlugType
 import com.joeydman.vitals.core.retention.Downsampler
 import com.joeydman.vitals.core.usage.ForegroundTimeCalculator
 import com.joeydman.vitals.sensors.BatteryReader
@@ -13,6 +16,7 @@ import com.joeydman.vitals.sensors.ThermalReader
 import com.joeydman.vitals.sensors.UsageReader
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import java.io.Writer
 import java.time.ZoneId
 
@@ -30,6 +34,7 @@ class MetricsRepository(
     /** Called from the periodic worker. Everything here is local I/O only. */
     suspend fun captureSnapshot(nowMs: Long = System.currentTimeMillis()) {
         battery.read(nowMs)?.let { db.batteryDao().insert(BatterySampleEntity.from(it)) }
+        updateChargeSessions(nowMs)
 
         val mem = memory.read()
         val cpuFreq = cpu.read()
@@ -50,6 +55,36 @@ class MetricsRepository(
         updateDailyCapacityEstimate(nowMs)
         prune(nowMs)
     }
+
+    /** Battery-only capture used by the 1-minute charging monitor. Returns true while plugged in. */
+    suspend fun captureBattery(nowMs: Long = System.currentTimeMillis()): Boolean {
+        val sample = battery.read(nowMs) ?: return false
+        db.batteryDao().insert(BatterySampleEntity.from(sample))
+        updateChargeSessions(nowMs)
+        return sample.plugType != PlugType.NONE
+    }
+
+    /**
+     * Re-derives sessions from raw samples, starting at the newest stored session so it is
+     * rebuilt in full (it may still be ongoing). Older sessions are final and left alone.
+     */
+    suspend fun updateChargeSessions(nowMs: Long = System.currentTimeMillis()) {
+        val from = db.chargeSessionDao().latestStart() ?: (nowMs - 2 * Downsampler.DAY_MS)
+        val samples = db.batteryDao().since(from).map { it.toModel() }
+        val sessions = ChargeSessionAnalyzer.detect(samples, nowMs).filter { it.startMs >= from }
+        if (sessions.isNotEmpty()) db.chargeSessionDao().upsertAll(sessions.map { ChargeSessionEntity.from(it) })
+    }
+
+    fun recentChargeSessions(limit: Int = 30): Flow<List<ChargeSession>> =
+        db.chargeSessionDao().observeRecent(limit).map { rows -> rows.map { it.toModel() } }
+
+    fun chargeSession(startMs: Long): Flow<ChargeSession?> =
+        db.chargeSessionDao().observe(startMs).map { it?.toModel() }
+
+    fun ongoingChargeSession(): Flow<ChargeSession?> =
+        db.chargeSessionDao().observeOngoing().map { it?.toModel() }
+
+    fun batterySamplesBetween(fromMs: Long, toMs: Long) = db.batteryDao().observeBetween(fromMs, toMs)
 
     /** Recomputes today's per-app totals from the raw event stream. Safe to call any time. */
     suspend fun refreshUsageToday(nowMs: Long = System.currentTimeMillis()) {

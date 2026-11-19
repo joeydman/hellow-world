@@ -16,6 +16,9 @@ interface BatteryDao {
     @Query("SELECT * FROM battery_sample WHERE timestampMs >= :sinceMs ORDER BY timestampMs")
     fun observeSince(sinceMs: Long): Flow<List<BatterySampleEntity>>
 
+    @Query("SELECT * FROM battery_sample WHERE timestampMs BETWEEN :fromMs AND :toMs ORDER BY timestampMs")
+    fun observeBetween(fromMs: Long, toMs: Long): Flow<List<BatterySampleEntity>>
+
     @Query("SELECT * FROM battery_sample ORDER BY timestampMs")
     suspend fun all(): List<BatterySampleEntity>
 
@@ -51,4 +54,21 @@ interface CapacityDao {
 
     @Query("SELECT * FROM capacity_estimate ORDER BY dayStartMs DESC LIMIT 1")
     suspend fun latest(): CapacityEstimateEntity?
+}
+
+@Dao
+interface ChargeSessionDao {
+    @Upsert suspend fun upsertAll(rows: List<ChargeSessionEntity>)
+
+    @Query("SELECT MAX(startMs) FROM charge_session")
+    suspend fun latestStart(): Long?
+
+    @Query("SELECT * FROM charge_session ORDER BY startMs DESC LIMIT :limit")
+    fun observeRecent(limit: Int): Flow<List<ChargeSessionEntity>>
+
+    @Query("SELECT * FROM charge_session WHERE startMs = :startMs")
+    fun observe(startMs: Long): Flow<ChargeSessionEntity?>
+
+    @Query("SELECT * FROM charge_session WHERE ongoing = 1 ORDER BY startMs DESC LIMIT 1")
+    fun observeOngoing(): Flow<ChargeSessionEntity?>
 }

@@ -36,6 +36,7 @@ import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import com.joeydman.vitals.container
+import com.joeydman.vitals.core.model.PlugType
 import com.joeydman.vitals.ui.MainActivity
 
 /** What a widget instance shows. Chosen in [WidgetConfigActivity], changeable by long-press > Settings. */
@@ -54,6 +55,7 @@ data class WidgetSnapshot(
     val healthPercent: Int?,
     val ramUsedFraction: Float,
     val ramAvailGb: Double,
+    val chargeRemainingMs: Long?,
 )
 
 class VitalsWidget : GlanceAppWidget() {
@@ -86,6 +88,7 @@ class VitalsWidget : GlanceAppWidget() {
             healthPercent = repo.latestHealth()?.healthPercent?.toInt(),
             ramUsedFraction = mem.usedFraction,
             ramAvailGb = mem.availBytes / 1_073_741_824.0,
+            chargeRemainingMs = if (battery?.plugType != PlugType.NONE) repo.battery.chargeTimeRemainingMs() else null,
         )
     }
 
@@ -119,7 +122,10 @@ class VitalsWidget : GlanceAppWidget() {
                         }
                     }
                     WidgetLayout.BATTERY -> {
-                        Metric(batteryText(s), s.healthPercent?.let { "Health $it%" } ?: "Health: learning")
+                        val subtitle = s.chargeRemainingMs?.let { "Full in ${it / 3_600_000}h ${it / 60_000 % 60}m" }
+                            ?: s.healthPercent?.let { "Health $it%" }
+                            ?: "Health: learning"
+                        Metric(batteryText(s), subtitle)
                         if (!compact) Bar((s.levelPercent ?: 0) / 100f)
                     }
                     WidgetLayout.THERMAL -> Metric(s.tempC?.let { "%.1f°C".format(it) } ?: "--", "Thermal: ${s.thermalLabel}")

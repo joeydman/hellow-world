@@ -16,6 +16,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.joeydman.vitals.core.battery.CapacityEstimator
+import com.joeydman.vitals.core.battery.ChargeHabits
 import com.joeydman.vitals.core.battery.DegradationTrend
 import com.joeydman.vitals.core.battery.DeviceProfiles
 import com.joeydman.vitals.core.battery.UnitNormalizer
@@ -24,12 +25,13 @@ import com.joeydman.vitals.core.retention.Downsampler
 import com.joeydman.vitals.data.MetricsRepository
 
 @Composable
-fun BatteryScreen(repo: MetricsRepository) {
+fun BatteryScreen(repo: MetricsRepository, onOpenSession: (Long) -> Unit) {
     val since = remember { System.currentTimeMillis() - 2 * Downsampler.DAY_MS }
     val samples by remember { repo.batteryHistory(since) }.collectAsState(initial = emptyList())
     val capacity by remember { repo.capacityHistory() }.collectAsState(initial = emptyList())
     val health by remember { repo.healthFlow() }.collectAsState(initial = null)
     val design by remember { repo.designCapacityFlow }.collectAsState(initial = null)
+    val sessions by remember { repo.recentChargeSessions(30) }.collectAsState(initial = emptyList())
 
     val models = samples.map { it.toModel() }
     val currentRaw = models.mapNotNull { it.currentNowRaw }
@@ -88,6 +90,25 @@ fun BatteryScreen(repo: MetricsRepository) {
             },
         ) {
             Sparkline(models.map { it.levelPercent.toDouble() })
+        }
+
+        Text("Recent charges", style = MaterialTheme.typography.titleLarge)
+        val habits = ChargeHabits.summarise(sessions)
+        if (habits != null) {
+            MetricCard(
+                title = "Charging habits, last ${habits.sessions} charges",
+                value = "%.0f%% → %.0f%% on average".format(habits.avgStartLevel, habits.avgEndLevel),
+                subtitle = habitsAdvice(habits),
+            )
+        }
+        if (sessions.isEmpty()) {
+            Text(
+                "Plug in to record your first charge. Vitals samples every minute while charging.",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
+        sessions.take(10).forEach { session ->
+            ChargeSessionRow(session) { onOpenSession(session.startMs) }
         }
 
         Text(

@@ -37,8 +37,15 @@ This table drives the whole scope. Promising anything in the red column would me
 - Settings: design capacity override, Samsung background-limit guidance, CSV export via the system file picker.
 - Background sampling every 15 minutes (WorkManager minimum), 30-day raw retention, daily capacity estimates kept forever.
 
+### Charge sessions (done)
+- Battery sampled every minute while plugged in, via a self-chaining WorkManager job with a "requires charging" constraint. The pending job doubles as the plug-in detector, and Android lifts Doze and standby limits while charging, so it is reliable and costs nothing on battery.
+- Each plug-in becomes a session: start/end level, duration, mAh added, average/peak current, sustained power (90th percentile, at the battery), average/peak temperature, time to 80%, time held at 100%, and a speed estimate (Slow / Normal / Fast / Super fast / Wireless). Logic in `core/battery/ChargeSessions.kt`, unit tested.
+- Charging habits across recent sessions (average start/end level, share of 100% charges, hot charges, deep discharges) with specific battery-care advice.
+- Overview shows a live "Charging now" card with Android's own time-to-full estimate; the Battery widget shows "Full in …" while charging.
+- Sessions are stored permanently (Room v2, hand-written migration checked in CI against Room's exported schema); the raw minute-by-minute readings behind them follow the 30-day retention.
+- To verify on the S25: speed thresholds (power read at the battery is below the adapter rating), and behaviour when Protect battery holds at 80%.
+
 ### v1.0 (next)
-- Charge session screen: start/end level, mAh added, average/peak current, peak temperature, charger type. Detect fast vs super-fast charging.
 - Usage history: 7/30-day per-app trends, category grouping, "most opened".
 - Thermal history: time spent throttled per day, correlated with the foreground app.
 - Alerts (local notifications only): charge limit reached (e.g. 80/85%), battery over 40 °C, sustained throttling.

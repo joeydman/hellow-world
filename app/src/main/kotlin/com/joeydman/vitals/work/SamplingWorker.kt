@@ -21,6 +21,8 @@ class SamplingWorker(context: Context, params: WorkerParameters) : CoroutineWork
     override suspend fun doWork(): Result = runCatching {
         applicationContext.container.repository.captureSnapshot()
         VitalsWidget().updateAll(applicationContext)
+        // Self-heal the charging chain if the system ever dropped it.
+        ChargeMonitorWorker.ensureScheduled(applicationContext)
     }.fold(onSuccess = { Result.success() }, onFailure = { Result.retry() })
 
     companion object {

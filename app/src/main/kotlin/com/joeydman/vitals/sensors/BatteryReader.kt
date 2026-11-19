@@ -49,6 +49,9 @@ class BatteryReader(private val context: Context) {
         )
     }
 
+    /** Android's own estimate (API 28+), null when not charging or unknown. */
+    fun chargeTimeRemainingMs(): Long? = bm.computeChargeTimeRemaining().takeIf { it > 0 }
+
     private companion object {
         /** BatteryManager.BATTERY_PLUGGED_DOCK, inlined because the constant is API 33+. */
         const val PLUGGED_DOCK = 8

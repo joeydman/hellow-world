@@ -11,12 +11,16 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.joeydman.vitals.core.battery.ChargeSpeed
 import com.joeydman.vitals.core.battery.UnitNormalizer
 import com.joeydman.vitals.core.model.BatterySample
+import com.joeydman.vitals.core.model.PlugType
 import com.joeydman.vitals.core.thermal.ThermalHeadroom
 import com.joeydman.vitals.core.thermal.ThermalState
 import com.joeydman.vitals.data.MetricsRepository
@@ -32,6 +36,7 @@ private data class Live(
     val thermal: ThermalState,
     val headroom: Float?,
     val cpu: CpuFreqReader.CpuFreq?,
+    val chargeRemainingMs: Long?,
 )
 
 /** Live view. Polls every 2 s while visible (thermal headroom is rate-limited to 1 Hz). */
@@ -40,11 +45,15 @@ fun OverviewScreen(repo: MetricsRepository) {
     val live by produceState<Live?>(initialValue = null) {
         while (true) {
             value = withContext(Dispatchers.IO) {
-                Live(repo.battery.read(), repo.memory.read(), repo.thermal.status(), repo.thermal.headroom(), repo.cpu.read())
+                Live(
+                    repo.battery.read(), repo.memory.read(), repo.thermal.status(), repo.thermal.headroom(), repo.cpu.read(),
+                    repo.battery.chargeTimeRemainingMs(),
+                )
             }
             delay(2_000)
         }
     }
+    val ongoing by remember { repo.ongoingChargeSession() }.collectAsState(initial = null)
     val l = live ?: return
 
     Column(
@@ -67,6 +76,20 @@ fun OverviewScreen(repo: MetricsRepository) {
                 b?.voltageMv?.let { "%.2f V".format(it / 1000.0) },
             ).joinToString(" · "),
         )
+
+        if (b != null && b.plugType != PlugType.NONE) {
+            val session = ongoing
+            MetricCard(
+                title = "Charging now",
+                value = l.chargeRemainingMs?.let { "Full in ${formatDuration(it)}" } ?: "${b.levelPercent}%",
+                subtitle = listOfNotNull(
+                    session?.let { "+${it.levelGained}% in ${formatDuration(it.durationMs)}" },
+                    session?.sustainedPowerW?.let { "%.1f W".format(it) },
+                    session?.speed?.takeIf { it != ChargeSpeed.UNKNOWN }?.label,
+                    b.plugType.name.lowercase().replaceFirstChar { it.uppercase() },
+                ).joinToString(" · "),
+            )
+        }
 
         MetricCard(
             title = "Temperature",

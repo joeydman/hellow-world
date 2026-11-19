@@ -19,13 +19,16 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.joeydman.vitals.container
 import com.joeydman.vitals.ui.screens.AppsScreen
 import com.joeydman.vitals.ui.screens.BatteryScreen
+import com.joeydman.vitals.ui.screens.ChargeSessionScreen
 import com.joeydman.vitals.ui.screens.OverviewScreen
 import com.joeydman.vitals.ui.screens.SettingsScreen
 import com.joeydman.vitals.ui.theme.VitalsTheme
@@ -51,7 +54,8 @@ class MainActivity : ComponentActivity() {
                         NavigationBar {
                             Tab.entries.forEach { tab ->
                                 NavigationBarItem(
-                                    selected = backStack?.destination?.route == tab.route,
+                                    selected = backStack?.destination?.route == tab.route ||
+                                        (tab == Tab.BATTERY && backStack?.destination?.route?.startsWith("session/") == true),
                                     onClick = {
                                         nav.navigate(tab.route) {
                                             popUpTo(nav.graph.findStartDestination().id) { saveState = true }
@@ -68,7 +72,15 @@ class MainActivity : ComponentActivity() {
                 ) { padding ->
                     NavHost(nav, startDestination = Tab.OVERVIEW.route, modifier = Modifier.padding(padding)) {
                         composable(Tab.OVERVIEW.route) { OverviewScreen(repo) }
-                        composable(Tab.BATTERY.route) { BatteryScreen(repo) }
+                        composable(Tab.BATTERY.route) {
+                            BatteryScreen(repo, onOpenSession = { start -> nav.navigate("session/$start") })
+                        }
+                        composable(
+                            "session/{startMs}",
+                            arguments = listOf(navArgument("startMs") { type = NavType.LongType }),
+                        ) { entry ->
+                            ChargeSessionScreen(repo, entry.arguments?.getLong("startMs") ?: 0L)
+                        }
                         composable(Tab.APPS.route) { AppsScreen(repo) }
                         composable(Tab.SETTINGS.route) { SettingsScreen(repo) }
                     }

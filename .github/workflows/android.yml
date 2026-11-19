@@ -54,3 +54,4 @@ jobs:
           path: |
             app/build/reports/
             core/build/reports/
+            app/schemas/

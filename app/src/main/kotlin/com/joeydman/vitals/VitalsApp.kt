@@ -10,6 +10,7 @@ import com.joeydman.vitals.sensors.CpuFreqReader
 import com.joeydman.vitals.sensors.MemoryReader
 import com.joeydman.vitals.sensors.ThermalReader
 import com.joeydman.vitals.sensors.UsageReader
+import com.joeydman.vitals.work.ChargeMonitorWorker
 import com.joeydman.vitals.work.SamplingWorker
 
 class VitalsApp : Application() {
@@ -20,6 +21,7 @@ class VitalsApp : Application() {
         super.onCreate()
         container = AppContainer(this)
         SamplingWorker.schedule(this)
+        ChargeMonitorWorker.ensureScheduled(this)
     }
 }
 
